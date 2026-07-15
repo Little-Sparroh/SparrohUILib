@@ -73,15 +73,25 @@ namespace Sparroh.UI
         public static readonly Color Separator = new Color(0.30f, 0.40f, 0.50f, 0.40f);
 
         // ── Interactive states ──────────────────────────────────────────────
+        // Default = slate utility, Primary = teal constructive, Danger = coral destructive,
+        // Active = green selected. Each style has its own hover/pressed for clear feedback.
 
         public static readonly Color ButtonNormal = new Color(0.16f, 0.22f, 0.30f, 1f);
-        public static readonly Color ButtonHover = new Color(0.22f, 0.32f, 0.42f, 1f);
-        public static readonly Color ButtonPressed = new Color(0.12f, 0.18f, 0.26f, 1f);
-        public static readonly Color ButtonActive = new Color(0.18f, 0.45f, 0.38f, 1f);
-        public static readonly Color ButtonDanger = new Color(0.55f, 0.18f, 0.20f, 1f);
-        public static readonly Color ButtonDangerHover = new Color(0.70f, 0.25f, 0.28f, 1f);
-        public static readonly Color ButtonPrimary = new Color(0.15f, 0.40f, 0.60f, 1f);
-        public static readonly Color ButtonPrimaryHover = new Color(0.20f, 0.50f, 0.75f, 1f);
+        public static readonly Color ButtonHover = new Color(0.26f, 0.38f, 0.50f, 1f);
+        public static readonly Color ButtonPressed = new Color(0.12f, 0.17f, 0.24f, 1f);
+
+        public static readonly Color ButtonPrimary = new Color(0.14f, 0.42f, 0.62f, 1f);
+        public static readonly Color ButtonPrimaryHover = new Color(0.22f, 0.55f, 0.80f, 1f);
+        public static readonly Color ButtonPrimaryPressed = new Color(0.10f, 0.32f, 0.48f, 1f);
+
+        public static readonly Color ButtonDanger = new Color(0.58f, 0.18f, 0.22f, 1f);
+        public static readonly Color ButtonDangerHover = new Color(0.78f, 0.28f, 0.32f, 1f);
+        public static readonly Color ButtonDangerPressed = new Color(0.42f, 0.12f, 0.15f, 1f);
+
+        public static readonly Color ButtonActive = new Color(0.16f, 0.48f, 0.40f, 1f);
+        public static readonly Color ButtonActiveHover = new Color(0.22f, 0.60f, 0.50f, 1f);
+        public static readonly Color ButtonActivePressed = new Color(0.12f, 0.36f, 0.30f, 1f);
+
 
         public static readonly Color ToggleOff = new Color(0.25f, 0.28f, 0.32f, 1f);
         public static readonly Color ToggleOn = new Color(0.18f, 0.55f, 0.40f, 1f);
@@ -148,5 +158,34 @@ namespace Sparroh.UI
         {
             return new Color(color.r, color.g, color.b, alpha);
         }
+
+        /// <summary>
+        /// Parse a hex color string. Accepts RRGGBB, #RRGGBB, RRGGBBAA, #RRGGBBAA.
+        /// </summary>
+        public static bool TryParseHex(string hex, out Color color)
+        {
+            color = default;
+            if (string.IsNullOrWhiteSpace(hex))
+                return false;
+
+            string s = hex.Trim();
+            if (s.StartsWith("#"))
+                s = s.Substring(1);
+
+            if (s.Length != 6 && s.Length != 8)
+                return false;
+
+            // ColorUtility expects #RRGGBB or #RRGGBBAA
+            return ColorUtility.TryParseHtmlString("#" + s, out color);
+        }
+
+        /// <summary>
+        /// Parse hex or return <paramref name="fallback"/> when invalid/empty.
+        /// </summary>
+        public static Color ParseHex(string hex, Color fallback)
+        {
+            return TryParseHex(hex, out Color c) ? c : fallback;
+        }
     }
 }
+

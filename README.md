@@ -88,10 +88,24 @@ UITooltip.Attach(someButton.GameObject, "Does the thing");
 | API | Purpose |
 |-----|---------|
 | `UIColors.*` | Palette (Sky, Rose, Shamrock, PanelBg, ButtonPrimary, …) |
+| `UIColors.TryParseHex` / `ParseHex` | Parse RRGGBB / #RRGGBB hex strings |
+| `ConfigColor.Bind(...)` | Bind a hex color config entry with cached `Color` |
 | `UITheme.S(px)` | Scale reference pixels to current resolution |
 | `UITheme.ScaledSize(w, h)` | Scaled Vector2 |
 | `UITheme.ClampToScreen(size)` | Keep windows on-screen |
 | `RichText.Labeled(...)` | Colored label/value strings |
+
+### Configurable HUD colors
+
+```csharp
+// In your mod constructor:
+valueColor = ConfigColor.Bind(config, "Colors", "ValueColor", UIColors.Sky,
+    "Rich-text value color (hex RRGGBB or #RRGGBB).");
+
+// When drawing:
+hud.Primary.SetRich("Speed", speed, valueColor.Value, "m/s");
+```
+
 
 HUD positions use **normalized anchors (0–1)** so they stay consistent across resolutions. Window canvases use `CanvasScaler` with reference 1920×1080 and match width/height 0.5.
 

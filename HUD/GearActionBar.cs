@@ -42,6 +42,10 @@ namespace Sparroh.UI
             public int Order;
             public UIButton Button;
             public bool WantVisible = true;
+            public string Label = string.Empty;
+            public UIButtonStyle Style = UIButtonStyle.Default;
+            public bool Interactable = true;
+            public Action OnClick;
         }
 
         public static void Register(
@@ -56,19 +60,44 @@ namespace Sparroh.UI
 
             EnsureBuilt();
 
+            label = label ?? string.Empty;
+
             if (_slots.TryGetValue(id, out var existing))
             {
+                bool orderChanged = existing.Order != order;
+                bool labelChanged = !string.Equals(existing.Label, label, StringComparison.Ordinal);
+                bool styleChanged = existing.Style != style;
+                bool clickChanged = !ReferenceEquals(existing.OnClick, onClick);
+
                 existing.Order = order;
+                existing.OnClick = onClick;
+
                 if (existing.Button != null)
                 {
-                    existing.Button.SetText(label);
-                    existing.Button.SetStyle(style);
-                    existing.Button.Button.onClick.RemoveAllListeners();
-                    if (onClick != null)
-                        existing.Button.OnClick(onClick);
-                    existing.Button.SetWidth(Mathf.Max(UITheme.S(64f), EstimateWidth(label)));
+                    if (labelChanged)
+                    {
+                        existing.Label = label;
+                        existing.Button.SetText(label);
+                        existing.Button.SetWidth(Mathf.Max(UITheme.S(64f), EstimateWidth(label)));
+                    }
+
+                    if (styleChanged)
+                    {
+                        existing.Style = style;
+                        existing.Button.SetStyle(style);
+                    }
+
+                    if (clickChanged)
+                    {
+                        existing.Button.Button.onClick.RemoveAllListeners();
+                        if (onClick != null)
+                            existing.Button.OnClick(onClick);
+                    }
                 }
-                RebuildOrder();
+
+                if (orderChanged)
+                    RebuildOrder();
+
                 ApplyVisibility();
                 return;
             }
@@ -85,7 +114,11 @@ namespace Sparroh.UI
                 Id = id,
                 Order = order,
                 Button = btn,
-                WantVisible = true
+                WantVisible = true,
+                Label = label,
+                Style = style,
+                Interactable = true,
+                OnClick = onClick
             };
             RebuildOrder();
             ApplyVisibility();
@@ -93,31 +126,68 @@ namespace Sparroh.UI
 
         public static void SetText(string id, string text)
         {
-            if (_slots.TryGetValue(id, out var s) && s.Button != null)
-            {
-                s.Button.SetText(text);
-                s.Button.SetWidth(Mathf.Max(UITheme.S(64f), EstimateWidth(text)));
-            }
+            if (!_slots.TryGetValue(id, out var s) || s.Button == null)
+                return;
+
+            text = text ?? string.Empty;
+            if (string.Equals(s.Label, text, StringComparison.Ordinal))
+                return;
+
+            s.Label = text;
+            s.Button.SetText(text);
+            s.Button.SetWidth(Mathf.Max(UITheme.S(64f), EstimateWidth(text)));
         }
 
         public static void SetInteractable(string id, bool interactable)
         {
-            if (_slots.TryGetValue(id, out var s) && s.Button != null)
-                s.Button.SetInteractable(interactable);
+            if (!_slots.TryGetValue(id, out var s) || s.Button == null)
+                return;
+
+            if (s.Interactable == interactable)
+                return;
+
+            s.Interactable = interactable;
+            s.Button.SetInteractable(interactable);
+        }
+
+        public static void SetStyle(string id, UIButtonStyle style)
+        {
+            if (!_slots.TryGetValue(id, out var s) || s.Button == null)
+                return;
+
+            if (s.Style == style)
+                return;
+
+            s.Style = style;
+            s.Button.SetStyle(style);
         }
 
         public static void SetSlotVisible(string id, bool visible)
         {
-            if (_slots.TryGetValue(id, out var s))
+            if (!_slots.TryGetValue(id, out var s))
+                return;
+
+            if (s.WantVisible == visible)
             {
-                s.WantVisible = visible;
+                // Still sync active state if context visibility changed.
                 if (s.Button != null)
                     s.Button.SetActive(visible && _contextVisible);
+                return;
             }
+
+            s.WantVisible = visible;
+            if (s.Button != null)
+                s.Button.SetActive(visible && _contextVisible);
         }
 
         public static void SetContextVisible(bool visible)
         {
+            if (_contextVisible == visible && _built)
+            {
+                // No change; avoid thrashing SetActive every Tick.
+                return;
+            }
+
             _contextVisible = visible;
             if (!_built)
             {
@@ -214,7 +284,10 @@ namespace Sparroh.UI
                 return;
 
             bool any = _slots.Values.Any(s => s.WantVisible);
-            _canvas.gameObject.SetActive(_contextVisible && any);
+            bool show = _contextVisible && any;
+            if (_canvas.gameObject.activeSelf != show)
+                _canvas.gameObject.SetActive(show);
+
             foreach (var s in _slots.Values)
             {
                 if (s.Button != null)

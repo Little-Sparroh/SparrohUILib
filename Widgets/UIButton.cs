@@ -17,6 +17,7 @@ namespace Sparroh.UI
 
     /// <summary>
     /// Themed button with hover/press color transitions.
+    /// Color is driven manually so SetStyle/SetInteractable preserve hover state.
     /// </summary>
     public class UIButton
     {
@@ -29,6 +30,9 @@ namespace Sparroh.UI
         private Color _normal;
         private Color _hover;
         private Color _pressed;
+        private bool _hovered;
+        private bool _pressedDown;
+        private UIButtonStyle _style;
 
         private UIButton(GameObject go, RectTransform rt, Button btn, Image bg, TextMeshProUGUI label)
         {
@@ -58,13 +62,16 @@ namespace Sparroh.UI
 
             var btn = img.gameObject.AddComponent<Button>();
             btn.targetGraphic = img;
+            // ColorBlock multiplies image color; keep white so we drive image.color ourselves.
             var colors = btn.colors;
             colors.normalColor = Color.white;
             colors.highlightedColor = Color.white;
             colors.pressedColor = Color.white;
+            colors.selectedColor = Color.white;
             colors.disabledColor = new Color(1f, 1f, 1f, 0.4f);
-            colors.fadeDuration = 0.08f;
+            colors.fadeDuration = 0f;
             btn.colors = colors;
+            btn.transition = Selectable.Transition.ColorTint;
 
             var label = UIFactory.CreateTmp(
                 "Label",
@@ -80,15 +87,32 @@ namespace Sparroh.UI
             {
                 _normal = normal,
                 _hover = hover,
-                _pressed = pressed
+                _pressed = pressed,
+                _style = style
             };
 
-            // Manual hover colors (ColorBlock multiplies image color; we drive image.color directly)
             var trigger = img.gameObject.AddComponent<EventTrigger>();
-            AddTrigger(trigger, EventTriggerType.PointerEnter, _ => { if (btn.interactable) img.color = result._hover; });
-            AddTrigger(trigger, EventTriggerType.PointerExit, _ => { if (btn.interactable) img.color = result._normal; });
-            AddTrigger(trigger, EventTriggerType.PointerDown, _ => { if (btn.interactable) img.color = result._pressed; });
-            AddTrigger(trigger, EventTriggerType.PointerUp, _ => { if (btn.interactable) img.color = result._hover; });
+            AddTrigger(trigger, EventTriggerType.PointerEnter, _ =>
+            {
+                result._hovered = true;
+                result.ApplyVisualState();
+            });
+            AddTrigger(trigger, EventTriggerType.PointerExit, _ =>
+            {
+                result._hovered = false;
+                result._pressedDown = false;
+                result.ApplyVisualState();
+            });
+            AddTrigger(trigger, EventTriggerType.PointerDown, _ =>
+            {
+                result._pressedDown = true;
+                result.ApplyVisualState();
+            });
+            AddTrigger(trigger, EventTriggerType.PointerUp, _ =>
+            {
+                result._pressedDown = false;
+                result.ApplyVisualState();
+            });
 
             if (onClick != null)
                 btn.onClick.AddListener(new UnityAction(onClick));
@@ -105,23 +129,39 @@ namespace Sparroh.UI
 
         public UIButton SetText(string text)
         {
-            Label.text = text ?? string.Empty;
+            if (Label != null)
+                Label.text = text ?? string.Empty;
             return this;
         }
 
         public UIButton SetInteractable(bool interactable)
         {
+            if (Button.interactable == interactable)
+                return this;
+
             Button.interactable = interactable;
-            Background.color = interactable ? _normal : UIColors.WithAlpha(_normal, 0.45f);
+            if (!interactable)
+            {
+                _hovered = false;
+                _pressedDown = false;
+            }
+            ApplyVisualState();
             return this;
         }
 
         public UIButton SetStyle(UIButtonStyle style)
         {
+            if (_style == style)
+                return this;
+
+            _style = style;
             GetStyleColors(style, out _normal, out _hover, out _pressed);
-            Background.color = _normal;
+            ApplyVisualState();
             return this;
         }
+
+
+        public UIButtonStyle Style => _style;
 
         public UIButton SetWidth(float width)
         {
@@ -131,6 +171,29 @@ namespace Sparroh.UI
 
         public void SetActive(bool active) => GameObject.SetActive(active);
 
+        /// <summary>
+        /// Recompute background color from interactable + hover/press state.
+        /// Safe to call every frame; does not clear hover.
+        /// </summary>
+        public void ApplyVisualState()
+        {
+            if (Background == null || Button == null)
+                return;
+
+            if (!Button.interactable)
+            {
+                Background.color = UIColors.WithAlpha(_normal, 0.45f);
+                return;
+            }
+
+            if (_pressedDown)
+                Background.color = _pressed;
+            else if (_hovered)
+                Background.color = _hover;
+            else
+                Background.color = _normal;
+        }
+
         private static void GetStyleColors(UIButtonStyle style, out Color normal, out Color hover, out Color pressed)
         {
             switch (style)
@@ -138,17 +201,17 @@ namespace Sparroh.UI
                 case UIButtonStyle.Primary:
                     normal = UIColors.ButtonPrimary;
                     hover = UIColors.ButtonPrimaryHover;
-                    pressed = UIColors.ButtonPressed;
+                    pressed = UIColors.ButtonPrimaryPressed;
                     break;
                 case UIButtonStyle.Danger:
                     normal = UIColors.ButtonDanger;
                     hover = UIColors.ButtonDangerHover;
-                    pressed = UIColors.ButtonPressed;
+                    pressed = UIColors.ButtonDangerPressed;
                     break;
                 case UIButtonStyle.Active:
                     normal = UIColors.ButtonActive;
-                    hover = UIColors.WithAlpha(UIColors.ButtonActive, 0.85f);
-                    pressed = UIColors.ButtonPressed;
+                    hover = UIColors.ButtonActiveHover;
+                    pressed = UIColors.ButtonActivePressed;
                     break;
                 default:
                     normal = UIColors.ButtonNormal;
