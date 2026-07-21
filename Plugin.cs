@@ -8,7 +8,7 @@ public class SparrohUILibPlugin : BaseUnityPlugin
 {
     public const string PluginGUID = "sparroh.uilibrary";
     public const string PluginName = "SparrohUILib";
-    public const string PluginVersion = "1.1.1";
+    public const string PluginVersion = "1.1.3";
 
 
     internal static new ManualLogSource Logger;
@@ -19,4 +19,10 @@ public class SparrohUILibPlugin : BaseUnityPlugin
         UITheme.Initialize();
         Logger.LogInfo($"{PluginName} v{PluginVersion} loaded.");
     }
+
+    private void Update()
+    {
+        HudVisibility.Tick();
+    }
 }
+

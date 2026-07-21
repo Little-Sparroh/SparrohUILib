@@ -9,6 +9,7 @@ namespace Sparroh.UI
     /// <summary>
     /// Shared top toolbar for gear-menu action buttons across Sparroh mods.
     /// Single left-to-right row (no center gap).
+    /// Hosted on the game Menu canvas so hitboxes match the menu's camera/blit UI space.
     /// </summary>
     public static class GearActionBar
     {
@@ -26,13 +27,23 @@ namespace Sparroh.UI
         public const int OrderUndoScrap = 140;
         public const int OrderGunStats = 150;
 
+        // Menu canvas uses 1920x1080 reference units via the game's CanvasScaler.
+        // Do not apply UITheme.S() here — that would double-scale under the menu scaler.
         private const float CompactHeightRef = 24f;
         private const float CompactFontRef = 12f;
         private const float SlotGapRef = 4f;
+        private const float BarPadH = 8f;
+        private const float BarPadV = 4f;
+        // Menu UI is curved/warped; nudge the bar into the comfortable click/view band.
+        private const float BarTopInset = 18f;
+        private const float BarRightNudge = 24f;
+        private const float MinButtonWidth = 64f;
 
-        private static Canvas _canvas;
+
+        private static RectTransform _root;
         private static RectTransform _row;
         private static readonly Dictionary<string, Slot> _slots = new Dictionary<string, Slot>(StringComparer.Ordinal);
+
         private static bool _contextVisible;
         private static bool _built;
 
@@ -58,7 +69,8 @@ namespace Sparroh.UI
             if (string.IsNullOrEmpty(id))
                 return;
 
-            EnsureBuilt();
+            if (!EnsureBuilt())
+                return;
 
             label = label ?? string.Empty;
 
@@ -78,7 +90,7 @@ namespace Sparroh.UI
                     {
                         existing.Label = label;
                         existing.Button.SetText(label);
-                        existing.Button.SetWidth(Mathf.Max(UITheme.S(64f), EstimateWidth(label)));
+                        existing.Button.SetWidth(Mathf.Max(MinButtonWidth, EstimateWidth(label)));
                     }
 
                     if (styleChanged)
@@ -102,12 +114,14 @@ namespace Sparroh.UI
                 return;
             }
 
-            float h = UITheme.S(CompactHeightRef);
-            var btn = UIButton.Create(_row, label, onClick, style, preferredHeight: h);
+            var btn = UIButton.Create(_row, label, onClick, style, preferredHeight: CompactHeightRef);
             if (btn.Label != null)
-                btn.Label.fontSize = UITheme.S(CompactFontRef);
+                btn.Label.fontSize = CompactFontRef;
 
-            btn.SetWidth(Mathf.Max(UITheme.S(64f), EstimateWidth(label)));
+            btn.SetWidth(Mathf.Max(MinButtonWidth, EstimateWidth(label)));
+            // Slight vertical pad so residual warp/AA doesn't leave a dead click strip on the glyph.
+            if (btn.Background != null)
+                btn.Background.raycastPadding = new Vector4(0f, 2f, 0f, 2f);
 
             _slots[id] = new Slot
             {
@@ -135,7 +149,7 @@ namespace Sparroh.UI
 
             s.Label = text;
             s.Button.SetText(text);
-            s.Button.SetWidth(Mathf.Max(UITheme.S(64f), EstimateWidth(text)));
+            s.Button.SetWidth(Mathf.Max(MinButtonWidth, EstimateWidth(text)));
         }
 
         public static void SetInteractable(string id, bool interactable)
@@ -169,7 +183,6 @@ namespace Sparroh.UI
 
             if (s.WantVisible == visible)
             {
-                // Still sync active state if context visibility changed.
                 if (s.Button != null)
                     s.Button.SetActive(visible && _contextVisible);
                 return;
@@ -182,14 +195,16 @@ namespace Sparroh.UI
 
         public static void SetContextVisible(bool visible)
         {
-            if (_contextVisible == visible && _built)
+            if (_contextVisible == visible && _built && IsHostAlive())
             {
-                // No change; avoid thrashing SetActive every Tick.
+                // Still keep bar on top while open (menu windows reorder siblings).
+                if (visible)
+                    BringToFront();
                 return;
             }
 
             _contextVisible = visible;
-            if (!_built)
+            if (!_built || !IsHostAlive())
             {
                 if (visible)
                     EnsureBuilt();
@@ -217,6 +232,10 @@ namespace Sparroh.UI
 
         public static void Tick()
         {
+            // Menu can be destroyed/recreated; drop stale host refs.
+            if (_built && !IsHostAlive())
+                InvalidateHost();
+
             SetContextVisible(IsGearMenuOpen());
         }
 
@@ -229,40 +248,138 @@ namespace Sparroh.UI
             _slots.Remove(id);
         }
 
-        private static void EnsureBuilt()
+        private static bool IsHostAlive()
         {
-            if (_built && _canvas != null)
-                return;
+            return _root != null && _row != null;
+        }
+
+        private static void InvalidateHost()
+        {
+            // Buttons were children of the destroyed menu hierarchy.
+            foreach (var s in _slots.Values)
+                s.Button = null;
+
+            _root = null;
+            _row = null;
+            _built = false;
+
+        }
+
+        private static Transform TryGetMenuParent()
+        {
+            try
+            {
+                if (Menu.Instance == null)
+                    return null;
+
+                if (Menu.Instance.Canvas != null)
+                    return Menu.Instance.Canvas.transform;
+
+                return Menu.Instance.transform;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Build (or rebuild) the bar under the live Menu canvas.
+        /// Returns false if the menu is not available yet.
+        /// </summary>
+        private static bool EnsureBuilt()
+        {
+            if (_built && IsHostAlive())
+                return true;
+
+            var parent = TryGetMenuParent();
+            if (parent == null)
+                return false;
 
             UITheme.Initialize();
-            _canvas = UIFactory.CreateOverlayCanvas("Sparroh_GearActionBar", UITheme.WindowSortingOrder + 8);
 
-            // Full-width top strip
-            var bar = UIFactory.CreateRect("Bar", _canvas.transform);
-            bar.anchorMin = new Vector2(0f, 1f);
-            bar.anchorMax = new Vector2(1f, 1f);
-            bar.pivot = new Vector2(0.5f, 1f);
-            float barH = UITheme.S(CompactHeightRef + 12f);
-            bar.sizeDelta = new Vector2(0f, barH);
-            bar.anchoredPosition = new Vector2(0f, -UITheme.S(6f));
+            // If we had a previous root that somehow survived, drop it.
+            if (_root != null)
+            {
+                UIHelpers.DestroySafe(_root.gameObject);
+                _root = null;
+                _row = null;
+            }
 
-            var bg = bar.gameObject.AddComponent<Image>();
+            var root = UIFactory.CreateRect("Sparroh_GearActionBar", parent);
+            root.anchorMin = new Vector2(0f, 1f);
+            root.anchorMax = new Vector2(1f, 1f);
+            root.pivot = new Vector2(0.5f, 1f);
+            float barH = CompactHeightRef + (BarPadV * 2f) + 4f;
+            root.sizeDelta = new Vector2(0f, barH);
+            root.anchoredPosition = new Vector2(BarRightNudge, -BarTopInset);
+
+            root.localScale = Vector3.one;
+
+            var bg = root.gameObject.AddComponent<Image>();
             bg.color = UIColors.WithAlpha(UIColors.PanelBg, 0.55f);
             UIFactory.ApplyWhiteSprite(bg);
+            // Background must not steal clicks outside button bounds.
             bg.raycastTarget = false;
 
-            UIFactory.AddHorizontalLayout(bar.gameObject,
-                UITheme.S(SlotGapRef),
-                UITheme.ScaledPadding(8, 8, 4, 4),
-                TextAnchor.MiddleLeft,
+            // MiddleCenter: button cluster grows outward from the bar midpoint as slots are added.
+            UIFactory.AddHorizontalLayout(root.gameObject,
+                SlotGapRef,
+                new RectOffset(
+                    Mathf.RoundToInt(BarPadH),
+                    Mathf.RoundToInt(BarPadH),
+                    Mathf.RoundToInt(BarPadV),
+                    Mathf.RoundToInt(BarPadV)),
+                TextAnchor.MiddleCenter,
                 controlChildWidth: false,
                 expandWidth: false,
                 controlChildHeight: true,
                 expandHeight: false);
 
-            _row = bar;
+
+            _root = root;
+            _row = root;
             _built = true;
-            _canvas.gameObject.SetActive(false);
+
+
+            // Recreate button visuals for any slots registered before the menu existed.
+            RecreateButtons();
+            _root.gameObject.SetActive(false);
+            return true;
+        }
+
+        private static void RecreateButtons()
+        {
+            if (_row == null)
+                return;
+
+            foreach (var s in _slots.Values.OrderBy(x => x.Order))
+            {
+                if (s.Button != null && s.Button.GameObject != null)
+                {
+                    // Re-parent surviving button if needed.
+                    s.Button.GameObject.transform.SetParent(_row, false);
+                    continue;
+                }
+
+                var btn = UIButton.Create(_row, s.Label, s.OnClick, s.Style, preferredHeight: CompactHeightRef);
+                if (btn.Label != null)
+                    btn.Label.fontSize = CompactFontRef;
+                btn.SetWidth(Mathf.Max(MinButtonWidth, EstimateWidth(s.Label)));
+                btn.SetInteractable(s.Interactable);
+                if (btn.Background != null)
+                    btn.Background.raycastPadding = new Vector4(0f, 2f, 0f, 2f);
+                s.Button = btn;
+            }
+
+            RebuildOrder();
+        }
+
+        private static void BringToFront()
+        {
+            if (_root == null)
+                return;
+            _root.SetAsLastSibling();
         }
 
         private static void RebuildOrder()
@@ -272,34 +389,43 @@ namespace Sparroh.UI
 
             foreach (var s in _slots.Values.OrderBy(x => x.Order))
             {
-                if (s.Button == null) continue;
+                if (s.Button == null || s.Button.GameObject == null) continue;
                 s.Button.GameObject.transform.SetParent(_row, false);
                 s.Button.GameObject.transform.SetAsLastSibling();
             }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_row);
         }
 
         private static void ApplyVisibility()
         {
-            if (_canvas == null)
+            if (!IsHostAlive())
                 return;
 
             bool any = _slots.Values.Any(s => s.WantVisible);
             bool show = _contextVisible && any;
-            if (_canvas.gameObject.activeSelf != show)
-                _canvas.gameObject.SetActive(show);
+
+            if (_root.gameObject.activeSelf != show)
+                _root.gameObject.SetActive(show);
+
+            if (show)
+                BringToFront();
 
             foreach (var s in _slots.Values)
             {
                 if (s.Button != null)
                     s.Button.SetActive(_contextVisible && s.WantVisible);
             }
+
+            if (show)
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_row);
         }
 
         private static float EstimateWidth(string label)
         {
             if (string.IsNullOrEmpty(label))
-                return UITheme.S(64f);
-            return UITheme.S(12f + label.Length * 7.2f + 16f);
+                return MinButtonWidth;
+            return 12f + label.Length * 7.2f + 16f;
         }
     }
 }

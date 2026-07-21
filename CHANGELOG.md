@@ -1,6 +1,22 @@
 # Changelog
 
+## 1.1.3
+- HUD elements built via `HudBuilder` / `HudHandle` now respect the vanilla Hide HUD option (`PlayerLook.DisablePlayerHUD`)
+- Added `HudVisibility` helper; `HudHandle.SetActive` stores desired visibility and applies it only when the vanilla HUD is shown
+- Menu/overlay UI (windows, gear action bar) is unaffected
+
+## 1.1.2
+
+- Fixed gear action bar buttons requiring clicks slightly above the visible control
+- `GearActionBar` now parents under the game `Menu` canvas (camera/blit UI space) instead of a separate overlay canvas
+- Bar sizing uses menu reference pixels to avoid double-scaling with the menu `CanvasScaler`
+- Bar re-attaches if the menu is destroyed/recreated; stays on top while gear details is open
+- Nudged bar down/right so it sits cleanly in the curved menu chrome
+- Gear action buttons are centered and grow outward as more mods register slots
+
+
 ## 1.1.1
+
 - Fixed gear-bar / button hover being wiped when `SetInteractable` or `SetStyle` ran every frame
 - `UIButton` now tracks hover/press state and reapplies the correct color after style/interactable changes
 - `GearActionBar.Register` / `SetText` / `SetInteractable` only apply when values actually change

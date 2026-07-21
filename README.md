@@ -6,7 +6,8 @@ Shared UI library for Sparroh Mycopunk mods. One theme, one set of widgets, reso
 
 - **Theme system** — Mycopunk-inspired teal/slate surfaces with bioluminescent accents
 - **Resolution scaling** — Reference 1920×1080; scales cleanly across aspect ratios via `CanvasScaler` + `UITheme.Scale`
-- **HUD builder** — Single- and multi-line HUD text under the player reticle (normalized anchors)
+- **HUD builder** — Single- and multi-line HUD text under the player reticle (normalized anchors); respects vanilla Hide HUD
+
 - **Widgets** — Text, Button, Toggle, InputField, Panel, ScrollView, Separator, Dropdown, Slider, ProgressBar, Tabs, Tooltip
 - **Windows & dialogs** — Overlay windows (per-window canvas), confirm/alert dialogs
 - **Rich text helpers** — `Label: value unit` formatting with colored values
@@ -109,9 +110,21 @@ hud.Primary.SetRich("Speed", speed, valueColor.Value, "m/s");
 
 HUD positions use **normalized anchors (0–1)** so they stay consistent across resolutions. Window canvases use `CanvasScaler` with reference 1920×1080 and match width/height 0.5.
 
+## Vanilla Hide HUD
+
+Gameplay HUDs created with `HudBuilder` automatically hide when the player enables the vanilla **Hide HUD** option (`PlayerLook.DisablePlayerHUD`). Call `hud.SetActive(yourConfigEnabled)` as usual — the library combines your desired state with the vanilla toggle.
+
+```csharp
+// Optional: read the vanilla toggle yourself (e.g. custom non-HudHandle UI)
+if (HudVisibility.IsHidden) { /* skip drawing */ }
+```
+
+Menu overlays (`UIWindow`, `GearActionBar`) are not affected.
+
 ## HUD repositioning
 
 SparrohUILib does **not** own HUD repositioning. Register with ModSettingsMenu yourself:
+
 
 ```csharp
 HudRepositionClient.Register(guid, "Altimeter", hud.Rect, anchorX, anchorY);

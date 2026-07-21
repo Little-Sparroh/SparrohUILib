@@ -162,6 +162,7 @@ namespace Sparroh.UI
 
     /// <summary>
     /// Handle to a built HUD element.
+    /// Visibility respects the vanilla Hide HUD option (<see cref="HudVisibility"/>).
     /// </summary>
     public class HudHandle
     {
@@ -171,6 +172,10 @@ namespace Sparroh.UI
 
         public UIText Primary => Lines != null && Lines.Length > 0 ? Lines[0] : null;
 
+        /// <summary>Whether the mod wants this HUD shown (ignores vanilla Hide HUD).</summary>
+        public bool WantActive { get; private set; } = true;
+
+        /// <summary>Effective on-screen state (want active and vanilla HUD not hidden).</summary>
         public bool IsActive => GameObject != null && GameObject.activeSelf;
 
         public Vector2 Size => Rect != null ? Rect.sizeDelta : Vector2.zero;
@@ -180,6 +185,8 @@ namespace Sparroh.UI
             GameObject = go;
             Rect = rt;
             Lines = lines;
+            HudVisibility.Register(this);
+            ApplyEffectiveVisibility();
         }
 
         public void SetAnchor(float x, float y)
@@ -188,15 +195,31 @@ namespace Sparroh.UI
             UIHelpers.SetPointAnchor(Rect, x, y, Rect.pivot);
         }
 
+        /// <summary>
+        /// Set whether this HUD should be shown when the vanilla HUD is visible.
+        /// Actual GameObject active state also respects <see cref="HudVisibility.IsHidden"/>.
+        /// </summary>
         public void SetActive(bool active)
         {
-            if (GameObject != null)
-                GameObject.SetActive(active);
+            WantActive = active;
+            ApplyEffectiveVisibility();
+        }
+
+        internal void ApplyEffectiveVisibility()
+        {
+            if (GameObject == null)
+                return;
+
+            bool show = WantActive && !HudVisibility.IsHidden;
+            if (GameObject.activeSelf != show)
+                GameObject.SetActive(show);
         }
 
         public void Destroy()
         {
+            HudVisibility.Unregister(this);
             UIHelpers.DestroySafe(GameObject);
         }
     }
 }
+
