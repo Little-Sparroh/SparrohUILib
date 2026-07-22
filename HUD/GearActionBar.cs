@@ -262,7 +262,15 @@ namespace Sparroh.UI
             _root = null;
             _row = null;
             _built = false;
+            _contextVisible = false;
+        }
 
+        /// <summary>
+        /// Called on scene unload so the next gear-menu open rebuilds under the new Menu canvas.
+        /// </summary>
+        internal static void InvalidateHostForSceneUnload()
+        {
+            InvalidateHost();
         }
 
         private static Transform TryGetMenuParent()

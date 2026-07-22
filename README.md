@@ -49,16 +49,20 @@ Sparroh-SparrohUILib = "1.0.0"
 ```csharp
 using Sparroh.UI;
 
-// HUD (Altimeter-style)
-var hud = HudBuilder.Create("AltimeterHUD")
-    .ParentToReticle()
-    .Anchor(0.15f, 0.84f)
-    .Size(300, 25)
-    .AddText("AltitudeText")
-    .Build();
+// HUD (Altimeter-style) — rebuild when the handle dies after quit-to-menu
+if (!HudHandle.IsValid(hud))
+{
+    hud = HudBuilder.Create("AltimeterHUD")
+        .ParentToReticle()
+        .Anchor(0.15f, 0.84f)
+        .Size(300, 25)
+        .AddText("AltitudeText")
+        .Build();
+}
 
-if (hud != null)
+if (HudHandle.IsValid(hud))
     hud.Primary.SetRich("Altitude", 12.3f, UIColors.Shamrock, "m");
+
 
 // Multi-line HUD
 var meter = HudBuilder.Create("Carnometer")
@@ -120,6 +124,36 @@ if (HudVisibility.IsHidden) { /* skip drawing */ }
 ```
 
 Menu overlays (`UIWindow`, `GearActionBar`) are not affected.
+
+## Scene transitions (quit to menu / lobby)
+
+Reticle-parented HUD is destroyed with the player when you quit to menu. The C# `HudHandle` wrapper is **not** a `MonoBehaviour`, so you must treat a dead handle as missing and rebuild:
+
+```csharp
+// Every frame (or whenever you would create/update HUD):
+if (!HudHandle.IsValid(hud))
+{
+    // optional: unregister reposition / other side state tied to the old rect
+    hud = null;
+    hud = HudBuilder.Create("MyHUD")
+        .ParentToReticle()
+        .Anchor(x, y)
+        .Size(300, 25)
+        .AddText()
+        .Build();
+    // re-register HudRepositionClient etc. after a successful Build()
+}
+
+if (!HudHandle.IsValid(hud))
+    return; // player/reticle not ready yet
+
+hud.Primary.SetRich("Speed", speed, UIColors.Sky, "m/s");
+```
+
+- `hud.IsAlive` / `HudHandle.IsValid(hud)` become false after scene unload
+- Do **not** use `if (hud != null) return` alone in your create helper — a destroyed handle is still a non-null C# object
+- `GearActionBar` rebuilds its host under the live Menu canvas automatically (library ticks it each frame)
+
 
 ## HUD repositioning
 

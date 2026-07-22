@@ -163,35 +163,60 @@ namespace Sparroh.UI
     /// <summary>
     /// Handle to a built HUD element.
     /// Visibility respects the vanilla Hide HUD option (<see cref="HudVisibility"/>).
+    /// After quit-to-menu / scene unload the underlying GameObject is destroyed — check
+    /// <see cref="IsAlive"/> and rebuild rather than keeping a stale handle.
     /// </summary>
     public class HudHandle
     {
-        public GameObject GameObject { get; }
-        public RectTransform Rect { get; }
-        public UIText[] Lines { get; }
+        public GameObject GameObject { get; private set; }
+        public RectTransform Rect { get; private set; }
+        public UIText[] Lines { get; private set; }
 
         public UIText Primary => Lines != null && Lines.Length > 0 ? Lines[0] : null;
 
         /// <summary>Whether the mod wants this HUD shown (ignores vanilla Hide HUD).</summary>
         public bool WantActive { get; private set; } = true;
 
+        /// <summary>
+        /// True while the underlying Unity objects still exist.
+        /// Becomes false after scene teardown (quit to menu, lobby reload, etc.).
+        /// </summary>
+        public bool IsAlive => GameObject != null;
+
         /// <summary>Effective on-screen state (want active and vanilla HUD not hidden).</summary>
-        public bool IsActive => GameObject != null && GameObject.activeSelf;
+        public bool IsActive => IsAlive && GameObject.activeSelf;
 
         public Vector2 Size => Rect != null ? Rect.sizeDelta : Vector2.zero;
+
+        /// <summary>True when <paramref name="handle"/> is non-null and its GameObject still exists.</summary>
+        public static bool IsValid(HudHandle handle) => handle != null && handle.IsAlive;
 
         internal HudHandle(GameObject go, RectTransform rt, UIText[] lines)
         {
             GameObject = go;
             Rect = rt;
             Lines = lines;
+
+            // Mark dead as soon as Unity destroys the root (scene unload / player despawn).
+            var life = go.AddComponent<HudHandleLife>();
+            life.Handle = this;
+
             HudVisibility.Register(this);
             ApplyEffectiveVisibility();
         }
 
+        internal void MarkDestroyed()
+        {
+            // Called from HudHandleLife.OnDestroy — Unity objects are already going away.
+            HudVisibility.Unregister(this);
+            GameObject = null;
+            Rect = null;
+            Lines = null;
+        }
+
         public void SetAnchor(float x, float y)
         {
-            if (Rect == null) return;
+            if (!IsAlive || Rect == null) return;
             UIHelpers.SetPointAnchor(Rect, x, y, Rect.pivot);
         }
 
@@ -207,7 +232,7 @@ namespace Sparroh.UI
 
         internal void ApplyEffectiveVisibility()
         {
-            if (GameObject == null)
+            if (!IsAlive)
                 return;
 
             bool show = WantActive && !HudVisibility.IsHidden;
@@ -218,8 +243,25 @@ namespace Sparroh.UI
         public void Destroy()
         {
             HudVisibility.Unregister(this);
-            UIHelpers.DestroySafe(GameObject);
+            var go = GameObject;
+            GameObject = null;
+            Rect = null;
+            Lines = null;
+            UIHelpers.DestroySafe(go);
+        }
+    }
+
+    /// <summary>
+    /// Lives on the HUD root so scene/player teardown clears the C# handle immediately.
+    /// </summary>
+    internal sealed class HudHandleLife : MonoBehaviour
+    {
+        public HudHandle Handle;
+
+        private void OnDestroy()
+        {
+            Handle?.MarkDestroyed();
+            Handle = null;
         }
     }
 }
-

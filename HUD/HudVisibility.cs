@@ -48,10 +48,13 @@ namespace Sparroh.UI
 
         /// <summary>
         /// Poll vanilla hide state and re-apply registered HUD handles when it changes.
-        /// Safe to call every frame; only does work on transitions.
+        /// Also prunes handles whose GameObjects were destroyed (quit-to-menu / scene unload).
+        /// Safe to call every frame; hide-state work only runs on transitions.
         /// </summary>
         public static void Tick()
         {
+            PruneDead();
+
             bool hidden = IsHidden;
             if (_lastHidden.HasValue && _lastHidden.Value == hidden)
                 return;
@@ -60,12 +63,36 @@ namespace Sparroh.UI
             ApplyAll();
         }
 
+        /// <summary>
+        /// Drop handles whose Unity objects no longer exist.
+        /// Safe after scene transitions; does not recreate consumer HUD.
+        /// </summary>
+        public static void PruneDead()
+        {
+            for (int i = Handles.Count - 1; i >= 0; i--)
+            {
+                var h = Handles[i];
+                if (h == null || !h.IsAlive)
+                    Handles.RemoveAt(i);
+            }
+        }
+
+        /// <summary>
+        /// Clear hide-state cache and prune dead handles (e.g. after scene unload).
+        /// Next <see cref="Tick"/> will re-read vanilla hide state and re-apply survivors.
+        /// </summary>
+        public static void ResetSessionState()
+        {
+            _lastHidden = null;
+            PruneDead();
+        }
+
         internal static void ApplyAll()
         {
             for (int i = Handles.Count - 1; i >= 0; i--)
             {
                 var h = Handles[i];
-                if (h == null || h.GameObject == null)
+                if (h == null || !h.IsAlive)
                 {
                     Handles.RemoveAt(i);
                     continue;

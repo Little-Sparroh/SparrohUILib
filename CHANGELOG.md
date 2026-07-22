@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.4
+
+### Fixes
+- **Quit-to-menu / lobby reload** — HUD handles parented to the player reticle no longer stay "alive" as stale C# wrappers after scene unload. `HudHandle.IsAlive` / `HudHandle.IsValid` let consumers detect teardown and rebuild
+- `HudHandleLife` marks handles dead immediately when Unity destroys the root (player despawn / scene unload)
+- `HudVisibility` prunes dead handles every tick and resets hide-state cache on scene unload
+- `GearActionBar` host is invalidated on scene unload and ticked from the library plugin (no longer depends on a single consumer calling `Tick`)
+- `UITheme` font cache cleared on scene unload so destroyed in-scene TMP fonts are not reused
+- `UIText` accessors no-op safely when the underlying TMP was destroyed
+
+### API
+- `HudHandle.IsAlive` — true while the Unity GameObject still exists
+- `HudHandle.IsValid(handle)` — null-safe validity check
+- `HudVisibility.PruneDead` / `ResetSessionState`
+- `UITheme.ClearFontCache`
+
 ## 1.1.3
 - HUD elements built via `HudBuilder` / `HudHandle` now respect the vanilla Hide HUD option (`PlayerLook.DisablePlayerHUD`)
 - Added `HudVisibility` helper; `HudHandle.SetActive` stores desired visibility and applies it only when the vanilla HUD is shown

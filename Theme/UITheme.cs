@@ -62,6 +62,15 @@ namespace Sparroh.UI
             TryCacheFont();
         }
 
+        /// <summary>
+        /// Drop the cached TMP font after scene unload so a destroyed in-scene font
+        /// is not reused. Next <see cref="Font"/> access will re-resolve.
+        /// </summary>
+        public static void ClearFontCache()
+        {
+            _cachedFont = null;
+        }
+
         // ── Resolution scaling ──────────────────────────────────────────────
 
         /// <summary>
