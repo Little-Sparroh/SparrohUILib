@@ -17,7 +17,7 @@ readme = "README.md"
 outdir = "build"
 
 [[build.copy]]
-source = "bin/Release/net48/SparrohUILib.dll"
+source = "bin/Release/netstandard2.1/SparrohUILib.dll"
 target = "BepInEx/plugins/SparrohUILib.dll"
 
 [[build.copy]]

@@ -1,6 +1,14 @@
 # Changelog
 
+## 1.1.5
+
+### Fixes
+- **Dropdown layering** — open option lists reparent to the root canvas and use override sorting (`UITheme.DropdownSortingOrder`) so they paint above later siblings and are not clipped by scroll masks
+- Dropdowns flip above the trigger when there is not enough room below
+- Added `UIDropdown.IsOpen` for consumers that track open state after reparent
+
 ## 1.1.4
+
 
 ### Fixes
 - **Quit-to-menu / lobby reload** — HUD handles parented to the player reticle no longer stay "alive" as stale C# wrappers after scene unload. `HudHandle.IsAlive` / `HudHandle.IsValid` let consumers detect teardown and rebuild

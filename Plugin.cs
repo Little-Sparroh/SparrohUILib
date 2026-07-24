@@ -9,7 +9,8 @@ public class SparrohUILibPlugin : BaseUnityPlugin
 {
     public const string PluginGUID = "sparroh.uilibrary";
     public const string PluginName = "SparrohUILib";
-    public const string PluginVersion = "1.1.4";
+    public const string PluginVersion = "1.1.5";
+
 
 
     internal static new ManualLogSource Logger;
